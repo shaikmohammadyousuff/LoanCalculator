@@ -1,0 +1,10 @@
+trigger LoanAppTrigger on Loan_Application__c (after update) {
+    List<Loan_Repayment__c> toInsert = new List<Loan_Repayment__c>();
+    for(Loan_Application__c la : Trigger.new){
+       Loan_Application__c old = Trigger.oldMap.get(la.Id);
+       if(old.Status__c != 'Approved' && la.Status__c == 'Approved'){
+           // call loan calc apex method or reuse scheduleJson from custom field
+           // parse the JSON schedule and create Loan_Repayment__c records
+       }
+    }
+}

@@ -1,0 +1,11 @@
+public with sharing class LoanStatusPublisher {
+    public static void publishEvent(Loan_Application__c app) {
+        Loan_Status_Event__e evt = new Loan_Status_Event__e(
+            Loan_Application_Id__c = app.Id,
+            Status__c = app.Status__c,
+            Amount__c = app.Loan_Amount__c,
+            Message__c = 'Loan status updated'
+        );
+        EventBus.publish(evt);
+    }
+}

@@ -1,0 +1,51 @@
+public with sharing class LeadAutoConvertController {
+@InvocableMethod (label='Convert Lead Automatically')
+    public static void autoConvert(List<Id> leadIds) {
+        
+        // Query leads with property field
+        List<Lead> leadsToConvert = [
+            SELECT Id, FirstName, LastName, Intrested_Property__c, Intrested_Property__r.Name 
+            FROM Lead WHERE Id IN :leadIds
+        ];
+        
+        Id standardPricebookId = [SELECT Id FROM Pricebook2 WHERE IsStandard = true LIMIT 1].Id;
+
+        List<Database.LeadConvert> leadConverts = new List<Database.LeadConvert>();
+        Map<Id, Id> leadToPropertyMap = new Map<Id, Id>(); // Lead → Property
+
+        for (Lead lead : leadsToConvert) {
+            Database.LeadConvert lc = new Database.LeadConvert();
+            lc.setLeadId(lead.Id);
+            lc.setDoNotCreateOpportunity(false);
+            lc.setConvertedStatus('Closed - Converted');
+
+            // Build Opportunity Name
+            String oppName = lead.LastName;
+            if (lead.Intrested_Property__c != null) {
+                oppName += ' - ' + lead.Intrested_Property__r.Name;
+                leadToPropertyMap.put(lead.Id, lead.Intrested_Property__c);
+            }
+            lc.setOpportunityName(oppName);
+            leadConverts.add(lc);
+        }
+
+        // Convert Leads
+        List<Database.LeadConvertResult> results = Database.convertLead(leadConverts, false);
+
+        // Update Opportunities with property
+        List<Opportunity> oppsToUpdate = new List<Opportunity>();
+        for (Database.LeadConvertResult result : results) {
+            if (result.isSuccess() && leadToPropertyMap.containsKey(result.getLeadId())) {
+                oppsToUpdate.add(new Opportunity(
+                    Id = result.getOpportunityId(),
+                    Property__c = leadToPropertyMap.get(result.getLeadId()),
+                    Pricebook2Id = standardPricebookId
+                ));
+            }
+        }
+
+        if (!oppsToUpdate.isEmpty()) {
+            update oppsToUpdate;
+        }
+    }
+}

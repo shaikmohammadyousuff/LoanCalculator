@@ -1,0 +1,68 @@
+public with sharing class LoanCalculator {
+
+    public class ScheduleRow {
+        public Date dueDate;
+        public Decimal principal;
+        public Decimal interest;
+        public Decimal balance;
+    }
+
+    public class CalcInput {
+        @InvocableVariable public Decimal loanAmount;
+        @InvocableVariable public Decimal annualInterest;
+        @InvocableVariable public Integer tenorMonths;
+    }
+
+    public class CalcResult {
+        @InvocableVariable public Decimal monthlyInstallment;
+        @InvocableVariable public String scheduleJson;
+    }
+
+    @InvocableMethod(label='Calculate Loan Schedule')
+    public static List<CalcResult> calculate(List<CalcInput> inputs) {
+        List<CalcResult> results = new List<CalcResult>();
+
+        for (CalcInput inx : inputs) {
+            Decimal P = inx.loanAmount;
+            Decimal r = inx.annualInterest / 100;
+            Integer n = inx.tenorMonths;
+
+            Decimal monthlyRate = r / 12;
+
+            // FIXED: Use Double pow → convert to Decimal
+            Double powDouble = Math.pow((1 + monthlyRate).doubleValue(), n);
+            Decimal pow = Decimal.valueOf(powDouble);
+
+            Decimal monthly = (P * monthlyRate * pow) / (pow - 1);
+
+            // Build schedule
+            Decimal balance = P;
+            List<ScheduleRow> schedule = new List<ScheduleRow>();
+            Date due = Date.today().addMonths(1);
+
+            for (Integer i = 1; i <= n; i++) {
+                Decimal interestAmt = (balance * monthlyRate).setScale(2);
+                Decimal principalAmt = (monthly - interestAmt).setScale(2);
+
+                balance = (balance - principalAmt).setScale(2);
+
+                ScheduleRow row = new ScheduleRow();
+                row.dueDate = due;
+                row.principal = principalAmt;
+                row.interest = interestAmt;
+                row.balance = balance < 0 ? 0 : balance;
+
+                schedule.add(row);
+                due = due.addMonths(1);
+            }
+
+            CalcResult cr = new CalcResult();
+            cr.monthlyInstallment = monthly.setScale(2);
+            cr.scheduleJson = JSON.serialize(schedule);
+
+            results.add(cr);
+        }
+
+        return results;
+    }
+}
